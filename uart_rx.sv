@@ -9,15 +9,23 @@ module rx #(
     input logic data_in,
 
     output logic rx_open,
+    output logic rx_valid,
     output logic [BYTE-1:0] rx_saved
     
 );
-    
+    // Ensure we only transition to recieving if we get a proper START_BIT
+    logic prev_data_in;
+    logic data_in_val;
+    always_ff @(posedge clk) begin
+        prev_data_in <= data_in;
+        data_in_val <= (!data_in && prev_data_in);
+    end
 
     // Baud rate ticker 
     localparam int BAUD_DIV = CLK_FRQ / BAUD_RATE;
     logic baud_high; 
     logic [$clog2(BAUD_DIV)-1:0] clk_counter;
+    logic [$clog2(BAUD_DIV):0] half_counter;
     always_ff @(posedge clk or posedge areset) begin
         if (areset) begin
             clk_counter <= '0;
@@ -33,7 +41,8 @@ module rx #(
 
     // Initialization stuff
     logic [1:0] state;
-    localparam IDLE=2'd0, RECIEVING=2'd1, DONE=2'd2;
+    logic [$clog2(BYTE + 1): 0] counter;
+    localparam IDLE=2'd0, RECIEVING=2'd1, WAIT_HALF=2'd2, DONE=2'd3;
     localparam START_BIT=1'b0, STOP_BIT=1'b1;
 
     logic [BYTE-1:0] buffer;
@@ -42,38 +51,61 @@ module rx #(
         if (areset) begin
             counter <= 0;
             state <= IDLE;
-            buffer <= '0;
+            buffer <= '0; 
+            rx_saved <= '0;
+            half_counter <= 0;
             rx_open <= 1;
+            rx_valid <= 0;
 
-        end else if (baud_high) begin
+        end else begin
             case (state)
             IDLE : begin
                 rx_open <= 1;
-                if (START_BIT) begin
-                    state <= RECIEVING;
+                rx_valid <= 0;
+                if (data_in_val) begin
+                    state <= WAIT_HALF;
                     counter <= 0;
+                    half_counter <= 0;
+                    buffer <= '0;
+                end
+            end
+
+            WAIT_HALF : begin
+                half_counter <= half_counter + 1;
+                rx_open <= 1;
+                rx_valid <= 0;
+                if (half_counter == (BAUD_DIV >> 1)) begin
+                    half_counter <= 0;
+                    state <= RECIEVING;
                 end
             end
 
             RECIEVING : begin
-                rx_open <= 0;
-                if (counter == 8 && STOP_BIT) begin
-                    counter <= 0;
-                    state <= DONE;
-                end else if (counter >= 8 && !STOP_BIT) begin
-                    // If buffer is full but no stop bit ignore and stay in state
-                    pass;
-                end else begin
-                    buffer[counter] <= data_in;
-                    counter <= counter + 1;
+                if (baud_high) begin
+                    rx_open <= 0;
+                    rx_valid <= 0;
+                    if (counter == 8 && (data_in == STOP_BIT)) begin
+                        counter <= 0;
+                        state <= DONE;
+                    end else if (counter >= 8 && (data_in != STOP_BIT)) begin
+                        // If buffer is full but no stop bit ignore and stay in state
+                        counter <= '0;
+                        state <= IDLE;
+                    end else begin
+                        buffer[counter] <= data_in;
+                        counter <= counter + 1;
+                    end
                 end
 
             end
 
             DONE : begin
-                rx_saved <= buffer;
-                rx_open <= 1;
-                state <= IDLE;
+                if (baud_high) begin
+                    rx_saved <= buffer;
+                    rx_valid <= 1;
+                    rx_open <= 1;
+                    state <= IDLE;
+                end
             end
 
             default : begin
@@ -81,7 +113,7 @@ module rx #(
                 counter <= '0;
                 rx_open <= 1;
                 buffer <= '0;
-                rx_saved <= {BYTE{1'b1}};
+                rx_valid <= 0;
             end
 
             endcase
