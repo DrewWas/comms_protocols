@@ -8,7 +8,9 @@ module tx #(
     input logic areset,
     input logic data_loaded,
     input logic [7:0] data_in,
-    output logic data_out
+    output logic data_out,
+    output logic tx_done,
+    output logic tx_busy
 
 );
 
@@ -21,10 +23,14 @@ module tx #(
     end
 
     // Baud rate ticker (drive on 433 bc clk_freq / baud_rate = 433)
-    logic baud_high;
-    logic [8:0] clk_counter; // 9 bits wide bc log2(433) < 9;
-    always_ff @(posedge clk) begin
-        if (clk_counter >= 433) begin
+    localparam int BAUD_DIV = CLK_FRQ / BAUD_RATE;
+    logic baud_high; 
+    logic [$clog2(BAUD_DIV)-1:0] clk_counter; // 9 bits wide bc log2(433) < 9;
+    always_ff @(posedge clk or posedge areset) begin
+        if (areset) begin
+            clk_counter <= '0;
+            baud_high <= 0;
+        end else if (clk_counter == BAUD_DIV - 1) begin
             baud_high <= 1'b1;
             clk_counter <= '0;
         end else begin
@@ -36,8 +42,8 @@ module tx #(
 
     
     // Initialization stuff
-    logic [1:0] state;
-    localparam IDLE=2'd0, START=2'd1, TRANSMIT=2'd2, DONE=3'd3;
+    logic state;
+    localparam START=1'd0, TRANSMIT=1'd1;
     localparam START_BIT=1'b0, STOP_BIT=1'b1;
 
     // Shift register 
@@ -45,47 +51,52 @@ module tx #(
     logic [REG_WIDTH-1:0] shift_reg;
 
     // Bit counter 
-    int counter;
+    logic [$clog2(REG_WIDTH + 1) - 1:0] counter; 
 
     // Control FSM
     always_ff @(posedge clk or posedge areset) begin
         if (areset) begin
             state <= START;
+            tx_done <= 0;
+            tx_busy <= 0;
             counter <= 0;
+            data_out <= 1;
             shift_reg <= {REG_WIDTH{1'b0}};
         end else if (baud_high) begin
             case (state)
 
             START : begin
+                tx_busy <= 0;
                 if (data_loaded_pos_edge) begin
-                    shift_reg <= {START_BIT, data_in, STOP_BIT};
+                    tx_done <= 0;
+                    shift_reg <= {STOP_BIT, data_in, START_BIT};
                     state <= TRANSMIT;
-                end else begin
-                    shift_reg <= {REG_WIDTH{1'b0}};
-                    state <= START;
                 end
             end
 
             TRANSMIT : begin
                 if (counter == REG_WIDTH) begin
                     counter <= 0;
-                    state <= DONE;
+                    tx_done <= 1;
+                    tx_busy <= 0;
+                    state <= START;
+                    data_out <= 1;
                 end else begin
+                    tx_busy <= 1;
                     data_out <= shift_reg[0];
                     shift_reg <= shift_reg >> 1;
                     counter <= counter + 1;
-                    state <= TRANSMIT;
                 end
             end
-
-            DONE : begin
-
+            default : begin
+                tx_done <= 0;
+                data_out <= 1;
+                state <= START;
+                tx_busy <= 0;
             end
-
             endcase
         end
     end
-
 
 
 endmodule
