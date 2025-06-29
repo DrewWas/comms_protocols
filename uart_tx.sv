@@ -22,10 +22,10 @@ module tx #(
         data_loaded_pos_edge <= (data_loaded && !prev_data_loaded);
     end
 
-    // Baud rate ticker (drive on 433 bc clk_freq / baud_rate = 433)
+    // Baud rate ticker 
     localparam int BAUD_DIV = CLK_FRQ / BAUD_RATE;
     logic baud_high; 
-    logic [$clog2(BAUD_DIV)-1:0] clk_counter; // 9 bits wide bc log2(433) < 9;
+    logic [$clog2(BAUD_DIV)-1:0] clk_counter; 
     always_ff @(posedge clk or posedge areset) begin
         if (areset) begin
             clk_counter <= '0;
