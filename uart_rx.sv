@@ -74,7 +74,7 @@ module rx #(
                 half_counter <= half_counter + 1;
                 rx_open <= 1;
                 rx_valid <= 0;
-                if (half_counter == (BAUD_DIV >> 1)) begin
+                if (half_counter >= (BAUD_DIV >> 1)) begin
                     half_counter <= 0;
                     state <= RECIEVING;
                 end
