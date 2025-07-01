@@ -24,13 +24,13 @@ module rx #(
     // Baud rate ticker 
     localparam int BAUD_DIV = CLK_FRQ / BAUD_RATE;
     logic baud_high; 
-    logic [$clog2(BAUD_DIV)-1:0] clk_counter;
-    logic [$clog2(BAUD_DIV):0] half_counter;
+    int clk_counter;
+    int half_counter;
     always_ff @(posedge clk or posedge areset) begin
         if (areset) begin
             clk_counter <= '0;
             baud_high <= 0;
-        end else if (clk_counter == BAUD_DIV - 1) begin
+        end else if (32'(clk_counter) == BAUD_DIV - 1) begin
             baud_high <= 1'b1;
             clk_counter <= '0;
         end else begin
@@ -41,7 +41,7 @@ module rx #(
 
     // Initialization stuff
     logic [1:0] state;
-    logic [$clog2(BYTE + 1): 0] counter;
+    logic [3:0] counter;
     localparam IDLE=2'd0, RECIEVING=2'd1, WAIT_HALF=2'd2, DONE=2'd3;
     localparam START_BIT=1'b0, STOP_BIT=1'b1;
 
@@ -74,7 +74,7 @@ module rx #(
                 half_counter <= half_counter + 1;
                 rx_open <= 1;
                 rx_valid <= 0;
-                if (half_counter >= (BAUD_DIV >> 1)) begin
+                if (32'(half_counter) >= (BAUD_DIV >> 1)) begin
                     half_counter <= 0;
                     state <= RECIEVING;
                 end
@@ -92,7 +92,7 @@ module rx #(
                         counter <= '0;
                         state <= IDLE;
                     end else begin
-                        buffer[counter] <= data_in;
+                        buffer[counter[2:0]] <= data_in; // CHECK HERE FOR FUCKED UP INDEXING (might be dropping LSB instead of MSB)
                         counter <= counter + 1;
                     end
                 end

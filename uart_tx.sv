@@ -25,12 +25,12 @@ module tx #(
     // Baud rate ticker 
     localparam int BAUD_DIV = CLK_FRQ / BAUD_RATE;
     logic baud_high; 
-    logic [$clog2(BAUD_DIV)-1:0] clk_counter; 
+    logic [31:0] clk_counter; 
     always_ff @(posedge clk or posedge areset) begin
         if (areset) begin
             clk_counter <= '0;
             baud_high <= 0;
-        end else if (clk_counter == BAUD_DIV - 1) begin
+        end else if (32'(clk_counter) == 32'(BAUD_DIV - 1)) begin
             baud_high <= 1'b1;
             clk_counter <= '0;
         end else begin
