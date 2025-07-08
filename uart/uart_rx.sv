@@ -1,4 +1,6 @@
 
+ `timescale 1ns/10ps
+
 module rx #(
     parameter CLK_FRQ=250000000, // Clk frequency = 250MHz
     parameter BAUD_RATE=115200,  // 115,200 bits/sec

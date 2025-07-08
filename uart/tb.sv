@@ -1,5 +1,5 @@
 
-// `timescale 1ns/10ps
+ `timescale 1ns/10ps
 
 module tb;
 
@@ -53,6 +53,7 @@ module tb;
 
 
     always #5 clk = ~clk;
+    logic [7:0] tx_result;
 
     initial begin
         areset = 1;
@@ -66,6 +67,22 @@ module tb;
         wait(rx_valid) 
         $display("RX recieved: 0x%0h", rx_saved);
 
+        // Now feed into tx
+        wait(tx_busy == 0);
+        force uart_instantiation.rx_valid = 1;
+        force uart_instantiation.rx_saved = rx_saved;
+        #10;
+        force uart_instantiation.rx_valid = 0;
+
+        read_uart_byte(tx_result);
+        $display("Tx output: 0x%0h", tx_result);
+
+        if (tx_result == 8'h5A) 
+            $display("Loopback Sucess! | TEST PASSED!");
+        else 
+            $display("Loopback Failed :( | TEST FAILED!");
+
+        #100;
 
         $finish;
     end

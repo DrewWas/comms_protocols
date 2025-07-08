@@ -1,4 +1,6 @@
 
+ `timescale 1ns/10ps
+
 module tx #(
     parameter CLK_FRQ=50000000, // Clk frequency = 50MHz
     parameter BAUD_RATE=115200, //115,200 bits/sec
